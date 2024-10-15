@@ -178,12 +178,27 @@ def with_leftover(A):
     # then add the left over with cumsum 
     # but still check after everyday if you have money left over to buy stock. 
     # if total leftover at the end (so the last element of the cumsum array) is less than the last stock day, then return -1
+
+    # remainder = 20%A
+    # leftover = np.cumsum(remainder) # this should add up every time
+    # for i in range(len(A)):
+    #     if A[i] <= leftover[i-1]:
+    #         return np.int64(i + 1)
+    # return np.int64(-1)
+
     remainder = 20%A
-    leftover = np.cumsum(remainder) # this should add up every time
-    for i in range(len(A)):
-        if A[i] <= leftover[i-1]:
-            return np.int64(i + 1)
-    return np.int64(-1)
+    leftover = np.cumsum(remainder)
+
+    mask_TF = (A <= leftover)
+
+    first_day_enough = np.where(mask_TF)[0]
+
+    if first_day_enough.size > 0:
+        return np.int64(first_day_enough[0])
+    else:
+        return np.int64(-1)
+    
+    
 
 
 # ---------------------------------------------------------------------

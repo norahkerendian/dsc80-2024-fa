@@ -198,10 +198,25 @@ def letter_proportions(total):
 
 
 def raw_redemption(final_breakdown, question_numbers):
-    ...
+    result = pd.DataFrame()
+    redemp_cols = []
+
+    for col in final_breakdown.columns[1:]:
+        col_split = col.split(' ')
+        q_num = int(col_split[1])
+        
+        for q in question_numbers:
+            if q == q_num:
+                redemp_cols.append(col)
+    
+    result['PID'] = final_breakdown['PID']
+    result['total'] = final_breakdown[redemp_cols].sum(axis=1)
+    result['Raw Redemption Score'] = result['total'] / result['total'].max()
+    result = result[['PID', 'Raw Redemption Score']]
+    return result
     
 def combine_grades(grades, raw_redemption_scores):
-    ...
+    return grades.merge(raw_redemption_scores, left_on='PID', right_on='PID')
 
 
 # ---------------------------------------------------------------------
@@ -210,22 +225,72 @@ def combine_grades(grades, raw_redemption_scores):
 
 
 def z_score(ser):
-    ...
+    return (ser - np.mean(ser)) / np.std(ser, ddof=0)
     
 def add_post_redemption(grades_combined):
-    ...
+
+    def total_score_df(assignment_key):
+        assignments = get_assignment_names(grades_combined)
+        list_grades = []
+
+        for item in assignments[assignment_key]:
+            grades_combined[item] = grades_combined[item].fillna(0)
+            item_grade = grades_combined[item] / grades_combined[f'{item} - Max Points']
+            list_grades.append(item_grade)
+
+        item_df = pd.DataFrame(data = list_grades, index=assignments[assignment_key]).T
+        item_df = item_df.assign(total = item_df.sum(axis = 1) / item_df.shape[1])
+        return item_df
+    
+    midterm_grades_final = total_score_df('midterm')['total']
+
+    grades_combined['Midterm Score Pre-Redemption'] = midterm_grades_final
+
+    raw_redemp_z = z_score(grades_combined['Raw Redemption Score'])
+    midterm_z = z_score(grades_combined['Midterm Score Pre-Redemption'])
+
+    comp = raw_redemp_z > midterm_z
+
+    post_redemp_score = []
+    for ind, boolean in enumerate(comp):
+        if boolean == True: 
+            # redemption z-score * class' midterm SD + class' midterm mean
+            replacement = raw_redemp_z.iloc[ind] * np.std(midterm_grades_final, ddof=0) + np.mean(midterm_grades_final)
+            if replacement > 1:
+                replacement = 1.0
+        else:
+            replacement = grades_combined['Midterm Score Pre-Redemption'].iloc[ind]
+        
+        post_redemp_score.append(replacement)
+    
+    grades_combined['Midterm Score Post-Redemption'] = post_redemp_score
+    
+    return grades_combined
 
 
 # ---------------------------------------------------------------------
 # QUESTION 10
 # ---------------------------------------------------------------------
-
-
+    
 def total_points_post_redemption(grades_combined):
-    ...
+
+    no_midterm = total_points(grades_combined) - (grades_combined['Midterm Score Pre-Redemption'] * 0.15)
+    new_midterm_added = no_midterm + (grades_combined['Midterm Score Post-Redemption'] * 0.15)
+
+    return new_midterm_added
         
 def proportion_improved(grades_combined):
-    ...
+    pre_redemp = total_points(grades_combined)
+    post_redemp = total_points_post_redemption(grades_combined)
+
+    pre_redemp_grade = final_grades(pre_redemp)
+    post_redemp_grade = final_grades(post_redemp)
+
+    comp = pre_redemp_grade > post_redemp_grade
+    proportion = comp.sum() / len(comp)
+    
+    return proportion
+    
 
 
 # ---------------------------------------------------------------------
@@ -234,10 +299,40 @@ def proportion_improved(grades_combined):
 
 
 def section_most_improved(grades_analysis):
-    ...
+    
+    dictionary = {}
+    for section in grades_analysis['Section'].unique():
+        df_section = grades_analysis[grades_analysis['Section'] == section].copy()
+        ser = df_section['Letter Grade Post-Redemption'] < df_section['Letter Grade Pre-Redemption']
+        dictionary[section] = ser.sum() / len(ser)
+
+    return max(dictionary, key=dictionary.get) 
     
 def top_sections(grades_analysis, t, n):
-    ...
+
+    def total_score_df(assignment_key):
+        assignments = get_assignment_names(grades_analysis)
+        list_grades = []
+
+        for item in assignments[assignment_key]:
+            grades_analysis[item] = grades_analysis[item].fillna(0)
+            item_grade = grades_analysis[item] / grades_analysis[f'{item} - Max Points']
+            list_grades.append(item_grade)
+
+        item_df = pd.DataFrame(data = list_grades, index=assignments[assignment_key]).T
+        item_df = item_df.assign(total = item_df.sum(axis = 1) / item_df.shape[1])
+        item_df['Section'] = grades_analysis['Section']
+        return item_df
+
+    df = total_score_df('final')
+    output = np.array([])
+    for section in grades_analysis['Section'].unique():
+        df_section = df[df['Section'] == section].copy()
+        ser_t_comp = df_section['total'] >= t
+        if sum(ser_t_comp) >= n:
+            output = np.append(section, output)
+    output = np.sort(output)
+    return output
 
 
 # ---------------------------------------------------------------------

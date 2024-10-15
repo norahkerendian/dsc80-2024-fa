@@ -14,6 +14,7 @@ import numpy as np
 
 
 def read_linkedin_survey(dirname):
+    # can use for-loop
     ...
 
 
@@ -28,6 +29,7 @@ def com_stats(df):
 
 
 def read_student_surveys(dirname):
+    # can use for-loop
     ...
 
 
