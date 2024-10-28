@@ -216,7 +216,8 @@ def raw_redemption(final_breakdown, question_numbers):
     return result
     
 def combine_grades(grades, raw_redemption_scores):
-    return grades.merge(raw_redemption_scores, left_on='PID', right_on='PID')
+    new_grades = grades.copy()
+    return new_grades.merge(raw_redemption_scores, left_on='PID', right_on='PID')
 
 
 # ---------------------------------------------------------------------
@@ -242,12 +243,14 @@ def add_post_redemption(grades_combined):
         item_df = item_df.assign(total = item_df.sum(axis = 1) / item_df.shape[1])
         return item_df
     
+    grades_copy = grades_combined.copy()
+
     midterm_grades_final = total_score_df('midterm')['total']
 
-    grades_combined['Midterm Score Pre-Redemption'] = midterm_grades_final
+    grades_copy['Midterm Score Pre-Redemption'] = midterm_grades_final
 
-    raw_redemp_z = z_score(grades_combined['Raw Redemption Score'])
-    midterm_z = z_score(grades_combined['Midterm Score Pre-Redemption'])
+    raw_redemp_z = z_score(grades_copy['Raw Redemption Score'])
+    midterm_z = z_score(grades_copy['Midterm Score Pre-Redemption'])
 
     comp = raw_redemp_z > midterm_z
 
@@ -259,13 +262,13 @@ def add_post_redemption(grades_combined):
             if replacement > 1:
                 replacement = 1.0
         else:
-            replacement = grades_combined['Midterm Score Pre-Redemption'].iloc[ind]
+            replacement = grades_copy['Midterm Score Pre-Redemption'].iloc[ind]
         
         post_redemp_score.append(replacement)
     
-    grades_combined['Midterm Score Post-Redemption'] = post_redemp_score
+    grades_copy['Midterm Score Post-Redemption'] = post_redemp_score
     
-    return grades_combined
+    return grades_copy
 
 
 # ---------------------------------------------------------------------
@@ -273,9 +276,9 @@ def add_post_redemption(grades_combined):
 # ---------------------------------------------------------------------
     
 def total_points_post_redemption(grades_combined):
-
-    no_midterm = total_points(grades_combined) - (grades_combined['Midterm Score Pre-Redemption'] * 0.15)
-    new_midterm_added = no_midterm + (grades_combined['Midterm Score Post-Redemption'] * 0.15)
+    df = add_post_redemption(grades_combined)
+    no_midterm = total_points(df) - (df['Midterm Score Pre-Redemption'] * 0.15)
+    new_midterm_added = no_midterm + (df['Midterm Score Post-Redemption'] * 0.15)
 
     return new_midterm_added
         
@@ -341,7 +344,10 @@ def top_sections(grades_analysis, t, n):
 
 
 def rank_by_section(grades_analysis):
-    ...
+    df = grades_analysis.copy()
+    rank = grades_analysis.groupby('Section')['Total Points Post-Redemption'].transform(lambda x: x.size - x.argsort().argsort())
+    df['rank'] = rank
+    return df.pivot(index='rank', columns='Section', values='PID').fillna('')
 
 
 
@@ -355,4 +361,7 @@ def rank_by_section(grades_analysis):
 
 
 def letter_grade_heat_map(grades_analysis):
-    ...
+    normalized_grades = (grades_analysis.groupby('Section')['Letter Grade Post-Redemption'].value_counts() / grades_analysis.groupby('Section')['Letter Grade Post-Redemption'].count()).to_frame()
+    normalized_grades = normalized_grades.pivot_table(index='Section', columns='Letter Grade Post-Redemption', values=0).fillna(0)
+    fig = px.imshow(normalized_grades.T, title='Distribution of Letter Grades by Section', color_continuous_scale='algae')
+    return fig

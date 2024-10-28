@@ -53,7 +53,7 @@ def most_common(df, N=10):
     new_df = pd.DataFrame(index=range(N)) 
     for col in df.columns:
         out = df[col].value_counts()
-        column_counts = out[:N] 
+        column_counts = out.iloc[:N] 
         if len(out) < N: 
             padding = N - len(out) 
             padding_series = pd.Series([np.nan] * padding, index=[np.nan] * padding)

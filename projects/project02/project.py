@@ -200,7 +200,10 @@ def combine_loans_and_state_taxes(loans, state_taxes):
     bracket_df['State'] = bracket_df['State'].replace(state_mapping)
 
     merged = loans.merge(bracket_df, left_on='addr_state', right_on='State')
+<<<<<<< Updated upstream
     merged = merged.drop('addr_state', axis=1)
+=======
+>>>>>>> Stashed changes
 
     return merged
 
